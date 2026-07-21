@@ -1,6 +1,6 @@
 # Solar Trade - MERN Smart Grid Ecosystem
 
-Solar Trade is a premium, environment-friendly web application inspired by Apple macOS, Tesla, and Stripe layouts. Built entirely on the MERN Stack, it facilitates rooftop solar installations, project crowdfunding investments, peer-to-peer electricity trading, billing cycles, and customer support tickets.
+Solar Trade is a premium, environment-friendly web application.  Built entirely on the MERN Stack, it facilitates rooftop solar installations, project crowdfunding investments, peer-to-peer electricity trading, billing cycles, and customer support tickets.
 
 ---
 
