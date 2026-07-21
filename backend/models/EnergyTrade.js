@@ -5,7 +5,7 @@ const energyTradeSchema = new mongoose.Schema(
     seller: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: null,
     },
     buyer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -28,6 +28,11 @@ const energyTradeSchema = new mongoose.Schema(
       type: String,
       enum: ['Listed', 'Completed', 'Cancelled'],
       default: 'Listed',
+    },
+    targetCategory: {
+      type: String,
+      enum: ['Household', 'Commercial', 'Industrial'],
+      default: 'Household',
     },
   },
   { timestamps: true }

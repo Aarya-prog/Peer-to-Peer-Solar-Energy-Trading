@@ -43,8 +43,19 @@ export const NotificationProvider = ({ children }) => {
     }
   };
 
+  const deleteNotification = async (id) => {
+    try {
+      const res = await api.delete(`/notifications/${id}`);
+      if (res.data.success) {
+        setNotifications((prev) => prev.filter((n) => n._id !== id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
-    <NotificationContext.Provider value={{ notifications, fetchNotifications, markRead }}>
+    <NotificationContext.Provider value={{ notifications, fetchNotifications, markRead, deleteNotification }}>
       {children}
     </NotificationContext.Provider>
   );

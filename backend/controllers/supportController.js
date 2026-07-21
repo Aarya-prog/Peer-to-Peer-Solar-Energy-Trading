@@ -1,6 +1,7 @@
 import SupportTicket from '../models/SupportTicket.js';
 import Feedback from '../models/Feedback.js';
 import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // @desc    Create support ticket
@@ -21,12 +22,15 @@ export const createTicket = asyncHandler(async (req, res) => {
   });
 
   // Notify admin
-  await Notification.create({
-    user: null,
-    title: 'New Support Ticket',
-    message: `User ${req.user.name} submitted a ticket: "${subject}"`,
-    type: 'Info',
-  });
+  const adminUser = await User.findOne({ role: 'Admin' });
+  if (adminUser) {
+    await Notification.create({
+      user: adminUser._id,
+      title: 'New Support Ticket',
+      message: `User ${req.user.name} submitted a ticket: "${subject}"`,
+      type: 'Info',
+    });
+  }
 
   res.status(201).json({ success: true, data: ticket });
 });

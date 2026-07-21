@@ -37,7 +37,7 @@ const EnergyPlans = () => {
         toast.success('Successfully subscribed to energy plan!');
       }
     } catch (err) {
-      toast.error(err.message || 'Subscription failed');
+      toast.error(err.response?.data?.error || err.message || 'Subscription failed');
     } finally {
       setSubscribingId(null);
     }

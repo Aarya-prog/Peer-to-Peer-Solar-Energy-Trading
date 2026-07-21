@@ -87,6 +87,12 @@ export const subscribeToPlan = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, error: 'Admins cannot subscribe to plans' });
   }
 
+  // Enforce KYC verification
+  const profile = await Profile.findOne({ user: req.user.id });
+  if (!profile || profile.verificationStatus !== 'Verified') {
+    return res.status(403).json({ success: false, error: 'KYC verification is required before subscribing to energy plans' });
+  }
+
   const { planId, months } = req.body;
 
   const plan = await Plan.findById(planId);
@@ -111,7 +117,6 @@ export const subscribeToPlan = asyncHandler(async (req, res) => {
   });
 
   // Award points to profile
-  const profile = await Profile.findOne({ user: req.user.id });
   if (profile) {
     profile.rewardPoints += 150;
     profile.achievements.push({

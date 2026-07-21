@@ -32,7 +32,7 @@ const InstallSolar = () => {
         setZip('');
       }
     } catch (err) {
-      toast.error(err.message || 'Failed to submit request');
+      toast.error(err.response?.data?.error || err.message || 'Failed to submit request');
     } finally {
       setLoading(false);
     }

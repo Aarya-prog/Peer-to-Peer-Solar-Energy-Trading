@@ -20,6 +20,14 @@ const projectSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    minimumInvestment: {
+      type: Number,
+      default: 10000,
+    },
+    maximumInvestment: {
+      type: Number,
+      default: 500000,
+    },
     status: {
       type: String,
       enum: ['Funding', 'Construction', 'Operational'],

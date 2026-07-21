@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { FiUser, FiPhone, FiMapPin, FiLock, FiAward, FiGift, FiCamera, FiTrash2 } from 'react-icons/fi';
 import { Spinner } from '../components/Loader';
+import Modal from '../components/Modal';
 
 const Profile = () => {
   const { logout } = useAuth();
@@ -21,6 +22,29 @@ const Profile = () => {
   const [verifiedLoc, setVerifiedLoc] = useState('');
   const [updating, setUpdating] = useState(false);
 
+  // KYC States
+  const [kycRecord, setKycRecord] = useState(null);
+  const [kycModalOpen, setKycModalOpen] = useState(false);
+  const [submittingKyc, setSubmittingKyc] = useState(false);
+
+  // KYC Form fields
+  const [kycFullName, setKycFullName] = useState('');
+  const [kycDob, setKycDob] = useState('');
+  const [kycPanNumber, setKycPanNumber] = useState('');
+  const [kycAadhaarNumber, setKycAadhaarNumber] = useState('');
+  const [kycGstNumber, setKycGstNumber] = useState('');
+  const [kycBankName, setKycBankName] = useState('');
+  const [kycHolderName, setKycHolderName] = useState('');
+  const [kycAccNumber, setKycAccNumber] = useState('');
+  const [kycIfsc, setKycIfsc] = useState('');
+  const [kycUpi, setKycUpi] = useState('');
+  const [kycAddress, setKycAddress] = useState('');
+
+  // File uploads
+  const [profilePhotoFile, setProfilePhotoFile] = useState(null);
+  const [identityProofFile, setIdentityProofFile] = useState(null);
+  const [addressProofFile, setAddressProofFile] = useState(null);
+
   // Password States
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -33,16 +57,47 @@ const Profile = () => {
   const fetchProfile = async () => {
     try {
       const res = await api.get('/users/profile');
+      let currentProfile = null;
       if (res.data.success) {
-        setProfile(res.data.data);
-        setPhone(res.data.data.phone || '+91 ');
-        setStreet(res.data.data.address?.street || '');
-        setCity(res.data.data.address?.city || '');
-        setState(res.data.data.address?.state || '');
-        setZip(res.data.data.address?.zip || '');
-        setGovIdType(res.data.data.governmentIdType || 'None');
-        setGovIdNumber(res.data.data.governmentIdNumber || '');
-        setVerifiedLoc(res.data.data.verifiedLocation || '');
+        currentProfile = res.data.data;
+        setProfile(currentProfile);
+        setPhone(currentProfile.phone || '+91 ');
+        setStreet(currentProfile.address?.street || '');
+        setCity(currentProfile.address?.city || '');
+        setState(currentProfile.address?.state || '');
+        setZip(currentProfile.address?.zip || '');
+        setGovIdType(currentProfile.governmentIdType || 'None');
+        setGovIdNumber(currentProfile.governmentIdNumber || '');
+        setVerifiedLoc(currentProfile.verifiedLocation || '');
+      }
+
+      // Fetch KYC Status
+      const kycRes = await api.get('/kyc/status');
+      if (kycRes.data.success && kycRes.data.data) {
+        const kycData = kycRes.data.data;
+        setKycRecord(kycData);
+        setKycFullName(kycData.fullName || '');
+        if (kycData.dob) {
+          setKycDob(new Date(kycData.dob).toISOString().split('T')[0]);
+        }
+        setKycPanNumber(kycData.panNumber || '');
+        setKycAadhaarNumber(kycData.aadhaarNumber || '');
+        setKycGstNumber(kycData.gstNumber || '');
+        setKycBankName(kycData.bankName || '');
+        setKycHolderName(kycData.accountHolderName || '');
+        setKycAccNumber(kycData.accountNumber || '');
+        setKycIfsc(kycData.ifscCode || '');
+        setKycUpi(kycData.upiId || '');
+        setKycAddress(kycData.address || '');
+      } else if (currentProfile) {
+        // Pre-fill from profile details
+        setKycFullName(currentProfile.user?.name || '');
+        const addrParts = [];
+        if (currentProfile.address?.street) addrParts.push(currentProfile.address.street);
+        if (currentProfile.address?.city) addrParts.push(currentProfile.address.city);
+        if (currentProfile.address?.state) addrParts.push(currentProfile.address.state);
+        if (currentProfile.address?.zip) addrParts.push(currentProfile.address.zip);
+        setKycAddress(addrParts.join(', '));
       }
     } catch (err) {
       toast.error('Failed to load profile details');
@@ -77,6 +132,57 @@ const Profile = () => {
       toast.error(err.message || 'Update failed');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleKycSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!profilePhotoFile && (!kycRecord || !kycRecord.profilePhoto)) {
+      return toast.error('Please upload your profile photo');
+    }
+    if (!identityProofFile && (!kycRecord || !kycRecord.identityProof)) {
+      return toast.error('Please upload identity proof');
+    }
+    if (!addressProofFile && (!kycRecord || !kycRecord.addressProof)) {
+      return toast.error('Please upload address proof');
+    }
+
+    setSubmittingKyc(true);
+    const toastLoader = toast.loading('Uploading documents and submitting KYC...');
+    try {
+      const formData = new FormData();
+      formData.append('fullName', kycFullName);
+      formData.append('dob', kycDob);
+      formData.append('panNumber', kycPanNumber);
+      formData.append('aadhaarNumber', kycAadhaarNumber);
+      formData.append('gstNumber', kycGstNumber);
+      formData.append('bankName', kycBankName);
+      formData.append('accountHolderName', kycHolderName);
+      formData.append('accountNumber', kycAccNumber);
+      formData.append('ifscCode', kycIfsc);
+      formData.append('upiId', kycUpi);
+      formData.append('address', kycAddress);
+
+      if (profilePhotoFile) formData.append('profilePhoto', profilePhotoFile);
+      if (identityProofFile) formData.append('identityProof', identityProofFile);
+      if (addressProofFile) formData.append('addressProof', addressProofFile);
+
+      const res = await api.post('/kyc/submit', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (res.data.success) {
+        toast.success('KYC submitted successfully! Status is now Pending Review.', { id: toastLoader });
+        setKycModalOpen(false);
+        fetchProfile();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || 'KYC submission failed', { id: toastLoader });
+    } finally {
+      setSubmittingKyc(false);
     }
   };
 
@@ -182,6 +288,54 @@ const Profile = () => {
               }`}>
               {profile?.verificationStatus === 'Verified' ? `Verified (${profile?.verifiedLocation || 'India'})` : `Verification: ${profile?.verificationStatus || 'Pending'}`}
             </span>
+          </div>
+
+          {/* KYC Status Card and Button */}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-800 text-left">
+            <h4 className="text-xs font-bold text-slate-500 mb-2">KYC IDENTITY</h4>
+            {!kycRecord ? (
+              <div className="space-y-2">
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-medium leading-relaxed">
+                  Your identity is not verified. You cannot purchase energy plans or request solar plants until KYC is complete.
+                </p>
+                <button
+                  onClick={() => setKycModalOpen(true)}
+                  className="w-full rounded-2xl bg-amber-500 hover:bg-amber-600 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-sm"
+                >
+                  Complete Your KYC
+                </button>
+              </div>
+            ) : kycRecord.status === 'Pending' || kycRecord.status === 'Under Review' ? (
+              <div className="space-y-1.5 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  KYC Pending Review
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Submitted on {new Date(kycRecord.updatedAt).toLocaleDateString()}. Administrators are currently validating your documents.
+                </p>
+              </div>
+            ) : kycRecord.status === 'Verified' ? (
+              <div className="space-y-1 p-3 rounded-2xl bg-green-500/5 border border-green-500/20">
+                <p className="text-xs font-bold text-green-600 dark:text-green-400">✓ KYC Approved</p>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Your account is fully verified for all green solar installations and tariff subscriptions.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 p-3 rounded-2xl bg-red-500/5 border border-red-500/20">
+                <p className="text-xs font-bold text-red-600 dark:text-red-400">✗ KYC Rejected</p>
+                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                  Reason: {kycRecord.rejectionReason || 'Document mismatch'}
+                </p>
+                <button
+                  onClick={() => setKycModalOpen(true)}
+                  className="w-full rounded-2xl bg-red-500 hover:bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition-all shadow-sm"
+                >
+                  Resubmit KYC
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-slate-200 dark:border-slate-800 mt-6 pt-4 flex justify-around text-sm">
@@ -436,6 +590,207 @@ const Profile = () => {
           </div>
         </div>
       </div>
+      {/* KYC Verification Form Modal */}
+      <Modal isOpen={kycModalOpen} onClose={() => setKycModalOpen(false)} title="Complete KYC Identity Verification">
+        <form onSubmit={handleKycSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto px-1 py-1">
+          <div className="bg-brand/5 border border-brand/10 p-3 rounded-2xl text-xs text-slate-500 leading-relaxed">
+            Please fill in your legal details and upload document images. Your submissions are stored securely.
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">FULL NAME (As on PAN/Aadhaar)</label>
+              <input
+                type="text"
+                required
+                value={kycFullName}
+                onChange={(e) => setKycFullName(e.target.value)}
+                placeholder="e.g. Aditya Sharma"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">DATE OF BIRTH</label>
+              <input
+                type="date"
+                required
+                value={kycDob}
+                onChange={(e) => setKycDob(e.target.value)}
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none text-slate-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">PAN CARD NUMBER</label>
+              <input
+                type="text"
+                required
+                maxLength="10"
+                value={kycPanNumber}
+                onChange={(e) => setKycPanNumber(e.target.value.toUpperCase())}
+                placeholder="ABCDE1234F"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none uppercase"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">AADHAAR NUMBER</label>
+              <input
+                type="text"
+                required
+                maxLength="12"
+                value={kycAadhaarNumber}
+                onChange={(e) => setKycAadhaarNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="12-digit Aadhaar"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">GST NUMBER (Optional)</label>
+              <input
+                type="text"
+                value={kycGstNumber}
+                onChange={(e) => setKycGstNumber(e.target.value.toUpperCase())}
+                placeholder="GSTIN Code"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none uppercase"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-850 pt-3">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Bank Details (For Payouts)</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">BANK NAME</label>
+                <input
+                  type="text"
+                  required
+                  value={kycBankName}
+                  onChange={(e) => setKycBankName(e.target.value)}
+                  placeholder="e.g. HDFC Bank"
+                  className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">ACCOUNT HOLDER NAME</label>
+                <input
+                  type="text"
+                  required
+                  value={kycHolderName}
+                  onChange={(e) => setKycHolderName(e.target.value)}
+                  placeholder="As in bank records"
+                  className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">ACCOUNT NUMBER</label>
+                <input
+                  type="text"
+                  required
+                  value={kycAccNumber}
+                  onChange={(e) => setKycAccNumber(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Bank Account Number"
+                  className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">IFSC CODE</label>
+                <input
+                  type="text"
+                  required
+                  value={kycIfsc}
+                  onChange={(e) => setKycIfsc(e.target.value.toUpperCase())}
+                  placeholder="e.g. HDFC0000123"
+                  className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none uppercase"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">UPI ID (Optional)</label>
+              <input
+                type="text"
+                value={kycUpi}
+                onChange={(e) => setKycUpi(e.target.value)}
+                placeholder="username@bank"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-850 pt-3">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 block mb-1">RESIDENTIAL ADDRESS</label>
+              <textarea
+                required
+                rows="2"
+                value={kycAddress}
+                onChange={(e) => setKycAddress(e.target.value)}
+                placeholder="Full Street Address, City, State & Zip Code"
+                className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Real file uploads for documents */}
+          <div className="border-t border-slate-100 dark:border-slate-850 pt-3 space-y-3">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">File Verification Uploads</h4>
+            
+            <div className="space-y-2 text-xs">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">PROFILE PHOTO (Image)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setProfilePhotoFile(e.target.files[0])}
+                  className="w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-2xl file:border-0 file:text-xs file:font-semibold file:bg-brand/10 file:text-brand hover:file:bg-brand/20 cursor-pointer"
+                />
+                {kycRecord?.profilePhoto && !profilePhotoFile && (
+                  <span className="text-[10px] text-green-500 font-medium">✓ Keep current profile photo</span>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">IDENTITY PROOF (Aadhaar / PAN Card Image)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setIdentityProofFile(e.target.files[0])}
+                  className="w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-2xl file:border-0 file:text-xs file:font-semibold file:bg-brand/10 file:text-brand hover:file:bg-brand/20 cursor-pointer"
+                />
+                {kycRecord?.identityProof && !identityProofFile && (
+                  <span className="text-[10px] text-green-500 font-medium">✓ Keep current identity proof</span>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">ADDRESS PROOF (Utility Bill Image)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setAddressProofFile(e.target.files[0])}
+                  className="w-full text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-2xl file:border-0 file:text-xs file:font-semibold file:bg-brand/10 file:text-brand hover:file:bg-brand/20 cursor-pointer"
+                />
+                {kycRecord?.addressProof && !addressProofFile && (
+                  <span className="text-[10px] text-green-500 font-medium">✓ Keep current address proof</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submittingKyc}
+            className="w-full rounded-2xl bg-brand hover:bg-brand-dark py-3 text-xs font-bold text-white transition-all disabled:opacity-50 mt-4 shadow-sm"
+          >
+            {submittingKyc ? 'Uploading files and submitting...' : 'Submit KYC Details'}
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 };

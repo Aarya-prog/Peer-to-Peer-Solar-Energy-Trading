@@ -106,6 +106,16 @@ export const buyEnergy = asyncHandler(async (req, res) => {
   const commission = trade.totalAmount * 0.05;
   console.log(`Platform commission collected: $${commission.toFixed(2)}`);
 
+  // Credit platform commission to Admin wallet balance
+  const adminUser = await User.findOne({ role: 'Admin' });
+  if (adminUser) {
+    const adminProfile = await Profile.findOne({ user: adminUser._id });
+    if (adminProfile) {
+      adminProfile.balance += commission;
+      await adminProfile.save();
+    }
+  }
+
   // Award rewards to buyer & seller
   buyerProfile.rewardPoints += 30;
   if (!buyerProfile.badges.includes('Eco Buyer')) {
@@ -138,6 +148,15 @@ export const buyEnergy = asyncHandler(async (req, res) => {
     message: `You successfully bought ${trade.unitsKwh} kWh from peer seller.`,
     type: 'Success',
   });
+
+  if (adminUser) {
+    await Notification.create({
+      user: adminUser._id,
+      title: 'Customer P2P Purchase Complete',
+      message: `Customer ${req.user.name} bought ${trade.unitsKwh} kWh surplus energy from seller for ₹${trade.totalAmount.toFixed(2)}.`,
+      type: 'Success',
+    });
+  }
 
   res.status(200).json({ success: true, data: trade });
 });
@@ -234,6 +253,15 @@ export const buyDirectPlantEnergy = asyncHandler(async (req, res) => {
     message: `You successfully bought ${unitsKwh} kWh directly from Regional Utility Grid.`,
     type: 'Success',
   });
+
+  if (adminUser) {
+    await Notification.create({
+      user: adminUser._id,
+      title: 'Customer Grid Purchase Complete',
+      message: `Customer ${req.user.name} bought ${unitsKwh} kWh directly from Regional Utility Grid for ₹${totalAmount.toFixed(2)}.`,
+      type: 'Success',
+    });
+  }
 
   res.status(201).json({ success: true, data: trade });
 });

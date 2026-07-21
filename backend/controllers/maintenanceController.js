@@ -1,5 +1,6 @@
 import MaintenanceRequest from '../models/MaintenanceRequest.js';
 import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // @desc    Submit maintenance request
@@ -19,12 +20,15 @@ export const requestMaintenance = asyncHandler(async (req, res) => {
   });
 
   // Notify admin
-  await Notification.create({
-    user: null,
-    title: 'New Maintenance Request',
-    message: `User ${req.user.name} submitted a maintenance request: "${description.substring(0, 50)}..."`,
-    type: 'Warning',
-  });
+  const adminUser = await User.findOne({ role: 'Admin' });
+  if (adminUser) {
+    await Notification.create({
+      user: adminUser._id,
+      title: 'New Maintenance Request',
+      message: `User ${req.user.name} submitted a maintenance request: "${description.substring(0, 50)}..."`,
+      type: 'Warning',
+    });
+  }
 
   res.status(201).json({ success: true, data: maintenance });
 });

@@ -14,6 +14,12 @@ export const requestInstallation = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: 'Please provide all details' });
   }
 
+  // Enforce KYC verification
+  const profile = await Profile.findOne({ user: req.user.id });
+  if (!profile || profile.verificationStatus !== 'Verified') {
+    return res.status(403).json({ success: false, error: 'KYC verification is required before requesting solar installation' });
+  }
+
   const installation = await Installation.create({
     user: req.user.id,
     panelCapacityKw,
@@ -22,12 +28,15 @@ export const requestInstallation = asyncHandler(async (req, res) => {
   });
 
   // Notify admin
-  await Notification.create({
-    user: null, // Admin/Global notification
-    title: 'New Solar Installation Request',
-    message: `User ${req.user.name} requested a ${panelCapacityKw}kW panel installation at ${street}, ${city}.`,
-    type: 'Info',
-  });
+  const adminUser = await User.findOne({ role: 'Admin' });
+  if (adminUser) {
+    await Notification.create({
+      user: adminUser._id,
+      title: 'New Solar Installation Request',
+      message: `User ${req.user.name} requested a ${panelCapacityKw}kW panel installation at ${street}, ${city}.`,
+      type: 'Info',
+    });
+  }
 
   res.status(201).json({ success: true, data: installation });
 });

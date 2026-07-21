@@ -6,6 +6,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 // @route   GET /api/notifications
 // @access  Private
 export const getMyNotifications = asyncHandler(async (req, res) => {
+  // Query only notifications belonging to the logged in user or global announcements
   const userNotifications = await Notification.find({
     $or: [{ user: req.user.id }, { user: null }],
   }).sort({ createdAt: -1 });
@@ -34,6 +35,26 @@ export const markAsRead = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: notification });
 });
 
+// @desc    Delete notification
+// @route   DELETE /api/notifications/:id
+// @access  Private
+export const deleteNotification = asyncHandler(async (req, res) => {
+  const notification = await Notification.findById(req.params.id);
+
+  if (!notification) {
+    return res.status(404).json({ success: false, error: 'Notification not found' });
+  }
+
+  // Check ownership
+  if (notification.user && notification.user.toString() !== req.user.id) {
+    return res.status(403).json({ success: false, error: 'Not authorized to delete this notification' });
+  }
+
+  await Notification.findByIdAndDelete(req.params.id);
+
+  res.status(200).json({ success: true, message: 'Notification deleted successfully' });
+});
+
 // @desc    Create a system announcement (Admin only)
 // @route   POST /api/notifications/announcement
 // @access  Private/Admin
@@ -52,9 +73,7 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
     author: req.user.id,
   });
 
-  // Create notifications for users fitting target roles
-  // Here, we can create a single global notification where user: null for simplicity, 
-  // marked as an Announcement type, which our frontend retrieves.
+  // Create global notification Announcement
   await Notification.create({
     user: null, // global
     title: `Announcement: ${title}`,
@@ -64,3 +83,4 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
 
   res.status(201).json({ success: true, data: announcement });
 });
+export default { getMyNotifications, markAsRead, deleteNotification, createAnnouncement };

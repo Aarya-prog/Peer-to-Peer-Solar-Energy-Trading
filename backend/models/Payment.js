@@ -13,7 +13,7 @@ const paymentSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['Bill', 'Investment', 'EnergyTrade'],
+      enum: ['Bill', 'Investment', 'EnergyTrade', 'Deposit'],
       required: true,
     },
     method: {

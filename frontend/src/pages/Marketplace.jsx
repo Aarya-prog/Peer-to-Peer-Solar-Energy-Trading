@@ -21,6 +21,8 @@ const Marketplace = () => {
   const [paying, setPaying] = useState(false);
 
   // Card states
+  const [selectedPayMethod, setSelectedPayMethod] = useState('Card'); // 'Card' or 'UPI'
+  const [upiId, setUpiId] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -30,6 +32,7 @@ const Marketplace = () => {
   const [maxPrice, setMaxPrice] = useState('');
   const [minUnits, setMinUnits] = useState('');
   const [userProfile, setUserProfile] = useState(null);
+  const [kycRecord, setKycRecord] = useState(null);
 
   const handleCardNumberChange = (e) => {
     const val = e.target.value.replace(/\D/g, '').substring(0, 16);
@@ -59,6 +62,15 @@ const Marketplace = () => {
       const tradeRes = await api.get('/marketplace/trades');
       const projRes = await api.get('/investments/projects');
       const profileRes = await api.get('/users/profile');
+      
+      try {
+        const kycRes = await api.get('/kyc/status');
+        if (kycRes.data.success) {
+          setKycRecord(kycRes.data.data);
+        }
+      } catch (kErr) {
+        // ignore if not submitted yet
+      }
 
       if (listRes.data.success) setListings(listRes.data.data);
       if (tradeRes.data.success) setTrades(tradeRes.data.data);
@@ -80,6 +92,12 @@ const Marketplace = () => {
     fetchMarketplaceData();
   }, [maxPrice, minUnits]);
 
+  const userCategory = userProfile?.customerType || 'Household';
+  const filteredListings = listings.filter((list) => {
+    if (!userCategory || userCategory === 'None') return true;
+    return list.targetCategory === userCategory;
+  });
+
   const openCheckout = (list) => {
     setActivePlant(null);
     setActiveListing(list);
@@ -87,6 +105,8 @@ const Marketplace = () => {
     setCardNumber('');
     setCardExpiry('');
     setCardCvv('');
+    setUpiId('');
+    setSelectedPayMethod('Card');
     setCheckoutModalOpen(true);
   };
 
@@ -98,12 +118,18 @@ const Marketplace = () => {
     setCardNumber('');
     setCardExpiry('');
     setCardCvv('');
+    setUpiId('');
+    setSelectedPayMethod('Card');
     setCheckoutModalOpen(true);
   };
 
   const handleBuy = async (e) => {
     e.preventDefault();
     if (!activeListing) return;
+
+    if (selectedPayMethod === 'UPI' && (!upiId || !upiId.includes('@'))) {
+      return toast.error('Please enter a valid UPI ID (e.g. username@bank)');
+    }
 
     setPaying(true);
     try {
@@ -120,7 +146,13 @@ const Marketplace = () => {
       const verifyRes = await api.post('/billing/payments/verify-signature', {
         checkoutId,
         signature,
-        paymentMethod: 'Card',
+        paymentMethod: selectedPayMethod === 'Card' ? 'Card' : 'UPI',
+        cardDetails: selectedPayMethod === 'Card' ? {
+          name: cardName,
+          number: cardNumber.replace(/\s/g, ''),
+          expiry: cardExpiry,
+          cvv: cardCvv,
+        } : null
       });
 
       if (buyRes.data.success && verifyRes.data.success) {
@@ -129,7 +161,7 @@ const Marketplace = () => {
         fetchMarketplaceData();
       }
     } catch (err) {
-      toast.error(err.message || 'Purchase failed');
+      toast.error(err.response?.data?.error || err.message || 'Purchase failed');
     } finally {
       setPaying(false);
     }
@@ -146,6 +178,11 @@ const Marketplace = () => {
     }
 
     const totalCost = units * 6.5; // standard grid plant rate of 6.5 INR/kWh
+
+    if (selectedPayMethod === 'UPI' && (!upiId || !upiId.includes('@'))) {
+      return toast.error('Please enter a valid UPI ID (e.g. username@bank)');
+    }
+
     setPaying(true);
     try {
       const intentRes = await api.post('/billing/payments/create-intent', {
@@ -160,7 +197,13 @@ const Marketplace = () => {
       const verifyRes = await api.post('/billing/payments/verify-signature', {
         checkoutId,
         signature,
-        paymentMethod: 'Card',
+        paymentMethod: selectedPayMethod === 'Card' ? 'Card' : 'UPI',
+        cardDetails: selectedPayMethod === 'Card' ? {
+          name: cardName,
+          number: cardNumber.replace(/\s/g, ''),
+          expiry: cardExpiry,
+          cvv: cardCvv,
+        } : null
       });
 
       if (verifyRes.data.success) {
@@ -176,7 +219,7 @@ const Marketplace = () => {
         fetchMarketplaceData();
       }
     } catch (err) {
-      toast.error(err.message || 'Purchase failed');
+      toast.error(err.response?.data?.error || err.message || 'Purchase failed');
     } finally {
       setPaying(false);
     }
@@ -224,6 +267,16 @@ const Marketplace = () => {
         </div>
       </div>
 
+      {/* KYC Warning Banner */}
+      {userProfile?.user?.role !== 'Admin' && (!kycRecord || kycRecord.status !== 'Verified') && (
+        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-3xl flex items-center gap-3">
+          <span className="text-amber-600 text-xl flex-shrink-0">⚠️</span>
+          <div className="text-xs text-slate-550 dark:text-slate-400">
+            <span className="font-bold text-amber-700 dark:text-amber-400">KYC Verification Pending:</span> You must verify your ID before purchasing energy from the marketplace. Please go to your Customer Dashboard overview to submit verification documents.
+          </div>
+        </div>
+      )}
+
       {activeTab === 'P2P' ? (
         /* P2P Tab Layout */
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -255,19 +308,24 @@ const Marketplace = () => {
 
           {/* Right Listings Grid */}
           <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {listings.length === 0 ? (
+            {filteredListings.length === 0 ? (
               <div className="sm:col-span-2 glass-panel p-10 text-center text-slate-400 rounded-3xl">
-                No active surplus energy listings matching criteria.
+                No active energy listings matching your configured category ({userCategory}).
               </div>
             ) : (
-              listings.map((list) => (
+              filteredListings.map((list) => (
                 <div key={list._id} className="glass-panel p-5 rounded-3xl shadow-glass flex flex-col justify-between">
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <p className="text-xs text-slate-400 font-semibold">Seller: {list.seller?.name}</p>
-                      <span className="rounded-full bg-brand/5 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand-dark dark:text-brand-lime">
-                        Active
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                          {list.targetCategory}
+                        </span>
+                        <span className="rounded-full bg-brand/5 border border-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand-dark dark:text-brand-lime">
+                          Active
+                        </span>
+                      </div>
                     </div>
                     <p className="text-2xl font-black">{list.unitsKwh} kWh</p>
                     <p className="text-xs text-slate-400 mt-1">Rate: <span className="font-bold text-brand">₹{list.pricePerUnit}/kWh</span></p>
@@ -284,7 +342,8 @@ const Marketplace = () => {
                     ) : (
                       <button
                         onClick={() => openCheckout(list)}
-                        className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark transition-all"
+                        disabled={!kycRecord || kycRecord.status !== 'Verified'}
+                        className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark transition-all disabled:opacity-40"
                       >
                         Buy Energy
                       </button>
@@ -350,7 +409,8 @@ const Marketplace = () => {
                     ) : (
                       <button
                         onClick={() => openPlantCheckout(p)}
-                        className={`w-full text-center rounded-2xl py-2.5 text-xs font-bold transition-all shadow-md ${
+                        disabled={!kycRecord || kycRecord.status !== 'Verified'}
+                        className={`w-full text-center rounded-2xl py-2.5 text-xs font-bold transition-all shadow-md disabled:opacity-40 ${
                           isNearbyPlant 
                             ? 'bg-brand text-white hover:bg-brand-dark shadow-green-500/25' 
                             : 'bg-slate-150 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -420,90 +480,139 @@ const Marketplace = () => {
               <p className="text-[10px] text-slate-400 mt-1">Buying: {activeListing.unitsKwh} kWh from {activeListing.seller?.name}</p>
             </div>
 
-            {/* Animated Credit Card Mockup */}
-            <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-brand-emerald to-brand text-white p-5 shadow-premium overflow-hidden mb-6 flex flex-col justify-between">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] text-slate-200 tracking-widest font-semibold uppercase">SolarPay Gateway</p>
-                  <div className="h-6 w-9 bg-yellow-400/90 rounded-md mt-2 flex items-center justify-center text-[8px] font-bold border border-yellow-350 shadow-sm pointer-events-none text-slate-800">CHIP</div>
-                </div>
-                <p className="text-sm font-black italic tracking-wider">SOLAR TRADE</p>
-              </div>
-              <div>
-                <p className="text-lg font-mono tracking-widest text-center my-1 select-all">
-                  {cardNumber || '•••• •••• •••• ••••'}
-                </p>
-                <div className="flex justify-between items-center text-[9px] text-slate-200 mt-1 font-mono">
-                  <div>
-                    <p className="text-[8px] uppercase tracking-wider text-slate-350">Cardholder</p>
-                    <p className="font-bold text-xs uppercase truncate max-w-[150px]">{cardName || 'YOUR FULL NAME'}</p>
-                  </div>
-                  <div className="flex gap-4">
-                    <div>
-                      <p className="text-[8px] uppercase tracking-wider text-slate-350">Expires</p>
-                      <p className="font-bold text-xs">{cardExpiry || 'MM/YY'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] uppercase tracking-wider text-slate-350">CVV</p>
-                      <p className="font-bold text-xs">{cardCvv || '•••'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            {/* Payment Method Selector Tabs */}
+            <div className="flex rounded-full bg-slate-100 dark:bg-slate-900 p-1 mb-4">
+              <button
+                type="button"
+                onClick={() => setSelectedPayMethod('Card')}
+                className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                  selectedPayMethod === 'Card'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                }`}
+              >
+                Credit / Debit Card
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPayMethod('UPI')}
+                className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                  selectedPayMethod === 'UPI'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                }`}
+              >
+                UPI Transfer
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Cardholder Name</label>
-                <input
-                  type="text"
-                  required
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+            {selectedPayMethod === 'Card' ? (
+              <>
+                {/* Animated Credit Card Mockup */}
+                <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-brand-emerald to-brand text-white p-5 shadow-premium overflow-hidden mb-6 flex flex-col justify-between">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] text-slate-200 tracking-widest font-semibold uppercase">SolarPay Gateway</p>
+                      <div className="h-6 w-9 bg-yellow-400/90 rounded-md mt-2 flex items-center justify-center text-[8px] font-bold border border-yellow-350 shadow-sm pointer-events-none text-slate-800">CHIP</div>
+                    </div>
+                    <p className="text-sm font-black italic tracking-wider">SOLAR TRADE</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-mono tracking-widest text-center my-1 select-all">
+                      {cardNumber || '•••• •••• •••• ••••'}
+                    </p>
+                    <div className="flex justify-between items-center text-[9px] text-slate-200 mt-1 font-mono">
+                      <div>
+                        <p className="text-[8px] uppercase tracking-wider text-slate-350">Cardholder</p>
+                        <p className="font-bold text-xs uppercase truncate max-w-[150px]">{cardName || 'YOUR FULL NAME'}</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <div>
+                          <p className="text-[8px] uppercase tracking-wider text-slate-350">Expires</p>
+                          <p className="font-bold text-xs">{cardExpiry || 'MM/YY'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[8px] uppercase tracking-wider text-slate-350">CVV</p>
+                          <p className="font-bold text-xs">{cardCvv || '•••'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Card Number</label>
-                <input
-                  type="text"
-                  required
-                  value={cardNumber}
-                  onChange={handleCardNumberChange}
-                  placeholder="4111 2222 3333 4444"
-                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Cardholder Name</label>
+                    <input
+                      type="text"
+                      required={selectedPayMethod === 'Card'}
+                      value={cardName}
+                      onChange={(e) => setCardName(e.target.value)}
+                      placeholder="John Doe"
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Card Number</label>
+                    <input
+                      type="text"
+                      required={selectedPayMethod === 'Card'}
+                      value={cardNumber}
+                      onChange={handleCardNumberChange}
+                      placeholder="4111 2222 3333 4444"
+                      className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">Expiration</label>
+                      <input
+                        type="text"
+                        required={selectedPayMethod === 'Card'}
+                        value={cardExpiry}
+                        onChange={handleExpiryChange}
+                        placeholder="MM/YY"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400 block mb-1">CVV / CVC</label>
+                      <input
+                        type="password"
+                        required={selectedPayMethod === 'Card'}
+                        value={cardCvv}
+                        onChange={handleCvvChange}
+                        maxLength="3"
+                        placeholder="•••"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50/50 dark:bg-slate-900/20 text-center space-y-2">
+                  <span className="text-4xl block">📱</span>
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-white">Pay Instantly via UPI App</h4>
+                  <p className="text-[11px] text-slate-500">Enter your UPI VPA address to trigger a collection request in your BHIM, Google Pay, PhonePe, or Paytm app.</p>
+                </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">Expiration</label>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">UPI ID / VPA</label>
                   <input
                     type="text"
-                    required
-                    value={cardExpiry}
-                    onChange={handleExpiryChange}
-                    placeholder="MM/YY"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">CVV / CVC</label>
-                  <input
-                    type="password"
-                    required
-                    value={cardCvv}
-                    onChange={handleCvvChange}
-                    maxLength="3"
-                    placeholder="•••"
+                    required={selectedPayMethod === 'UPI'}
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. aditya@upi"
                     className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
                   />
                 </div>
               </div>
-            </div>
+            )}
 
             <button
               type="submit"
@@ -523,111 +632,162 @@ const Marketplace = () => {
               <p className="text-[10px] text-slate-400 mt-1">Buying from: {activePlant.name} ({activePlant.location})</p>
             </div>
 
-            {/* Animated Credit Card Mockup */}
-            <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-brand-emerald to-brand text-white p-5 shadow-premium overflow-hidden mb-6 flex flex-col justify-between">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] text-slate-200 tracking-widest font-semibold uppercase">SolarPay Gateway</p>
-                  <div className="h-6 w-9 bg-yellow-400/90 rounded-md mt-2 flex items-center justify-center text-[8px] font-bold border border-yellow-350 shadow-sm pointer-events-none text-slate-800">CHIP</div>
-                </div>
-                <p className="text-sm font-black italic tracking-wider">SOLAR TRADE</p>
-              </div>
-              <div>
-                <p className="text-lg font-mono tracking-widest text-center my-1 select-all">
-                  {cardNumber || '•••• •••• •••• ••••'}
-                </p>
-                <div className="flex justify-between items-center text-[9px] text-slate-200 mt-1 font-mono">
-                  <div>
-                    <p className="text-[8px] uppercase tracking-wider text-slate-350">Cardholder</p>
-                    <p className="font-bold text-xs uppercase truncate max-w-[150px]">{cardName || 'YOUR FULL NAME'}</p>
-                  </div>
-                  <div className="flex gap-4">
-                    <div>
-                      <p className="text-[8px] uppercase tracking-wider text-slate-350">Expires</p>
-                      <p className="font-bold text-xs">{cardExpiry || 'MM/YY'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] uppercase tracking-wider text-slate-350">CVV</p>
-                      <p className="font-bold text-xs">{cardCvv || '•••'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+             <div className="space-y-3 mb-4">
+               <div>
+                 <label className="text-xs font-semibold text-slate-400 block mb-1">ENERGY UNITS TO BUY (kWh)</label>
+                 <input
+                   type="number"
+                   required
+                   value={purchaseUnits}
+                   onChange={(e) => setPurchaseUnits(e.target.value)}
+                   placeholder="e.g. 200"
+                   className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                 />
+               </div>
+             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">ENERGY UNITS TO BUY (kWh)</label>
-                <input
-                  type="number"
-                  required
-                  value={purchaseUnits}
-                  onChange={(e) => setPurchaseUnits(e.target.value)}
-                  placeholder="e.g. 200"
-                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+             {/* Payment Method Selector Tabs */}
+             <div className="flex rounded-full bg-slate-100 dark:bg-slate-900 p-1 mb-4">
+               <button
+                 type="button"
+                 onClick={() => setSelectedPayMethod('Card')}
+                 className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                   selectedPayMethod === 'Card'
+                     ? 'bg-brand text-white shadow-sm'
+                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                 }`}
+               >
+                 Credit / Debit Card
+               </button>
+               <button
+                 type="button"
+                 onClick={() => setSelectedPayMethod('UPI')}
+                 className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                   selectedPayMethod === 'UPI'
+                     ? 'bg-brand text-white shadow-sm'
+                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                 }`}
+               >
+                 UPI Transfer
+               </button>
+             </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Cardholder Name</label>
-                <input
-                  type="text"
-                  required
-                  value={cardName}
-                  onChange={(e) => setCardName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+             {selectedPayMethod === 'Card' ? (
+               <>
+                 {/* Animated Credit Card Mockup */}
+                 <div className="relative h-44 w-full rounded-2xl bg-gradient-to-br from-brand-emerald to-brand text-white p-5 shadow-premium overflow-hidden mb-6 flex flex-col justify-between">
+                   <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+                   <div className="flex justify-between items-start">
+                     <div>
+                       <p className="text-[10px] text-slate-200 tracking-widest font-semibold uppercase">SolarPay Gateway</p>
+                       <div className="h-6 w-9 bg-yellow-400/90 rounded-md mt-2 flex items-center justify-center text-[8px] font-bold border border-yellow-350 shadow-sm pointer-events-none text-slate-800">CHIP</div>
+                     </div>
+                     <p className="text-sm font-black italic tracking-wider">SOLAR TRADE</p>
+                   </div>
+                   <div>
+                     <p className="text-lg font-mono tracking-widest text-center my-1 select-all">
+                       {cardNumber || '•••• •••• •••• ••••'}
+                     </p>
+                     <div className="flex justify-between items-center text-[9px] text-slate-200 mt-1 font-mono">
+                       <div>
+                         <p className="text-[8px] uppercase tracking-wider text-slate-350">Cardholder</p>
+                         <p className="font-bold text-xs uppercase truncate max-w-[150px]">{cardName || 'YOUR FULL NAME'}</p>
+                       </div>
+                       <div className="flex gap-4">
+                         <div>
+                           <p className="text-[8px] uppercase tracking-wider text-slate-350">Expires</p>
+                           <p className="font-bold text-xs">{cardExpiry || 'MM/YY'}</p>
+                         </div>
+                         <div>
+                           <p className="text-[8px] uppercase tracking-wider text-slate-350">CVV</p>
+                           <p className="font-bold text-xs">{cardCvv || '•••'}</p>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Card Number</label>
-                <input
-                  type="text"
-                  required
-                  value={cardNumber}
-                  onChange={handleCardNumberChange}
-                  placeholder="4111 2222 3333 4444"
-                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                />
-              </div>
+                 <div className="space-y-3">
+                   <div>
+                     <label className="text-xs font-semibold text-slate-400 block mb-1">Cardholder Name</label>
+                     <input
+                       type="text"
+                       required={selectedPayMethod === 'Card'}
+                       value={cardName}
+                       onChange={(e) => setCardName(e.target.value)}
+                       placeholder="John Doe"
+                       className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                     />
+                   </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">Expiration</label>
-                  <input
-                    type="text"
-                    required
-                    value={cardExpiry}
-                    onChange={handleExpiryChange}
-                    placeholder="MM/YY"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">CVV / CVC</label>
-                  <input
-                    type="password"
-                    required
-                    value={cardCvv}
-                    onChange={handleCvvChange}
-                    maxLength="3"
-                    placeholder="•••"
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
-                  />
-                </div>
-              </div>
-            </div>
+                   <div>
+                     <label className="text-xs font-semibold text-slate-400 block mb-1">Card Number</label>
+                     <input
+                       type="text"
+                       required={selectedPayMethod === 'Card'}
+                       value={cardNumber}
+                       onChange={handleCardNumberChange}
+                       placeholder="4111 2222 3333 4444"
+                       className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                     />
+                   </div>
 
-            <button
-              type="submit"
-              disabled={paying}
-              className="w-full rounded-2xl bg-brand hover:bg-brand-dark py-3.5 text-sm font-semibold text-white transition-all shadow-lg"
-            >
-              {paying ? 'Authorizing Direct Grid Payout...' : 'Complete Secure Purchase'}
-            </button>
-          </form>
+                   <div className="grid grid-cols-2 gap-3">
+                     <div>
+                       <label className="text-xs font-semibold text-slate-400 block mb-1">Expiration</label>
+                       <input
+                         type="text"
+                         required={selectedPayMethod === 'Card'}
+                         value={cardExpiry}
+                         onChange={handleExpiryChange}
+                         placeholder="MM/YY"
+                         className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                       />
+                     </div>
+                     <div>
+                       <label className="text-xs font-semibold text-slate-400 block mb-1">CVV / CVC</label>
+                       <input
+                         type="password"
+                         required={selectedPayMethod === 'Card'}
+                         value={cardCvv}
+                         onChange={handleCvvChange}
+                         maxLength="3"
+                         placeholder="•••"
+                         className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                       />
+                     </div>
+                   </div>
+                 </div>
+               </>
+             ) : (
+               <div className="space-y-4">
+                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50/50 dark:bg-slate-900/20 text-center space-y-2">
+                   <span className="text-4xl block">📱</span>
+                   <h4 className="font-bold text-sm text-slate-800 dark:text-white">Pay Instantly via UPI App</h4>
+                   <p className="text-[11px] text-slate-500">Enter your UPI VPA address to trigger a collection request in your BHIM, Google Pay, PhonePe, or Paytm app.</p>
+                 </div>
+                 <div>
+                   <label className="text-xs font-semibold text-slate-400 block mb-1">UPI ID / VPA</label>
+                   <input
+                     type="text"
+                     required={selectedPayMethod === 'UPI'}
+                     value={upiId}
+                     onChange={(e) => setUpiId(e.target.value)}
+                     placeholder="e.g. aditya@upi"
+                     className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                   />
+                 </div>
+               </div>
+             )}
+
+             <button
+               type="submit"
+               disabled={paying}
+               className="w-full rounded-2xl bg-brand hover:bg-brand-dark py-3.5 text-sm font-semibold text-white transition-all shadow-lg mt-4"
+             >
+               {paying ? 'Authorizing Direct Grid Payout...' : 'Complete Secure Purchase'}
+             </button>
+           </form>
         )}
       </Modal>
     </div>

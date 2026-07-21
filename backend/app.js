@@ -21,6 +21,7 @@ import billingRoutes from './routes/billingRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import supportRoutes from './routes/supportRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import kycRoutes from './routes/kycRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,6 +70,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/kyc', kycRoutes);
 
 // Base route
 app.get('/', (req, res) => {

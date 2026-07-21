@@ -34,13 +34,12 @@ import EnergyPlans from './pages/EnergyPlans';
 import InstallSolar from './pages/InstallSolar';
 import SupportTickets from './pages/SupportTickets';
 import Profile from './pages/Profile';
+import CustomerWallet from './pages/CustomerWallet';
+import CustomerMetrics from './pages/CustomerMetrics';
 
 // Investor Pages
 import InvestorDashboard from './pages/InvestorDashboard';
 import ProjectsExplorer from './pages/ProjectsExplorer';
-
-// Engineer Pages
-import EngineerDashboard from './pages/EngineerDashboard';
 
 // Admin Pages
 import AdminDashboard from './pages/AdminDashboard';
@@ -55,7 +54,7 @@ import AdminAnnouncements from './pages/AdminAnnouncements';
 const PublicLayout = ({ children }) => (
   <div className="flex flex-col min-h-screen">
     <Navbar />
-    <main className="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main className="flex-grow w-full mx-auto px-6 py-6 max-w-none">
       {children}
     </main>
     <Footer />
@@ -65,9 +64,9 @@ const PublicLayout = ({ children }) => (
 const DashboardLayout = ({ children }) => (
   <div className="flex flex-col min-h-screen">
     <Navbar />
-    <div className="flex flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 gap-6">
+    <div className="flex flex-1 w-full mx-auto px-6 py-6 gap-6 max-w-none">
       <Sidebar />
-      <main className="flex-1 min-h-[60vh] max-w-full overflow-hidden">
+      <main className="flex-1 min-h-[80vh] overflow-x-hidden">
         {children}
       </main>
     </div>
@@ -97,6 +96,8 @@ const App = () => {
               {/* Customer Routes */}
               <Route path="/customer/dashboard" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><CustomerDashboard /></DashboardLayout></ProtectedRoute>} />
               <Route path="/customer/billing" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><Billing /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/customer/wallet" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><CustomerWallet /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/customer/metrics" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><CustomerMetrics /></DashboardLayout></ProtectedRoute>} />
               <Route path="/my-subscription" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><MySubscription /></DashboardLayout></ProtectedRoute>} />
               <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['Customer', 'Admin']}><DashboardLayout><Marketplace /></DashboardLayout></ProtectedRoute>} />
               <Route path="/plans" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><EnergyPlans /></DashboardLayout></ProtectedRoute>} />
@@ -106,10 +107,7 @@ const App = () => {
               <Route path="/investor/dashboard" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><InvestorDashboard /></DashboardLayout></ProtectedRoute>} />
               <Route path="/investor/portfolio" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><InvestorDashboard /></DashboardLayout></ProtectedRoute>} />
               <Route path="/investments/projects" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><ProjectsExplorer /></DashboardLayout></ProtectedRoute>} />
-
-              {/* Engineer Routes */}
-              <Route path="/engineer/dashboard" element={<ProtectedRoute allowedRoles={['Engineer']}><DashboardLayout><EngineerDashboard /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/engineer/maintenance" element={<ProtectedRoute allowedRoles={['Engineer']}><DashboardLayout><EngineerDashboard /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/investor/wallet" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><CustomerWallet /></DashboardLayout></ProtectedRoute>} />
 
               {/* Admin Routes */}
               <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['Admin']}><DashboardLayout><AdminDashboard /></DashboardLayout></ProtectedRoute>} />

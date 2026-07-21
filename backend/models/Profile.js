@@ -40,6 +40,11 @@ const profileSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    customerType: {
+      type: String,
+      enum: ['Household', 'Commercial', 'Industrial', 'None'],
+      default: 'None',
+    },
     preferences: {
       notificationsEnabled: { type: Boolean, default: true },
       themeMode: { type: String, enum: ['light', 'dark'], default: 'light' },

@@ -24,10 +24,23 @@ const investmentSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    durationMonths: {
+      type: Number,
+      default: 1,
+    },
+    maturityDate: {
+      type: Date,
+      required: true,
+    },
+    agreement: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'InvestorAgreement',
+      default: null,
+    },
     status: {
       type: String,
-      enum: ['Active', 'Withdrawn'],
-      default: 'Active',
+      enum: ['Active', 'Locked', 'Matured', 'Withdrawn'],
+      default: 'Locked',
     },
   },
   { timestamps: true }
