@@ -99,7 +99,7 @@ const App = () => {
               <Route path="/customer/billing" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><Billing /></DashboardLayout></ProtectedRoute>} />
               <Route path="/my-subscription" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><MySubscription /></DashboardLayout></ProtectedRoute>} />
               <Route path="/marketplace" element={<ProtectedRoute allowedRoles={['Customer', 'Admin']}><DashboardLayout><Marketplace /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/plans" element={<ProtectedRoute allowedRoles={['Customer', 'Admin']}><DashboardLayout><EnergyPlans /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/plans" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><EnergyPlans /></DashboardLayout></ProtectedRoute>} />
               <Route path="/install-solar" element={<ProtectedRoute allowedRoles={['Customer']}><DashboardLayout><InstallSolar /></DashboardLayout></ProtectedRoute>} />
 
               {/* Investor Routes */}

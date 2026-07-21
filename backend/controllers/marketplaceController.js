@@ -1,5 +1,6 @@
 import EnergyTrade from '../models/EnergyTrade.js';
 import Profile from '../models/Profile.js';
+import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
@@ -59,6 +60,10 @@ export const getActiveListings = asyncHandler(async (req, res) => {
 // @route   POST /api/marketplace/buy/:id
 // @access  Private
 export const buyEnergy = asyncHandler(async (req, res) => {
+  if (req.user.role === 'Admin') {
+    return res.status(403).json({ success: false, error: 'Admins cannot buy energy' });
+  }
+
   const trade = await EnergyTrade.findById(req.params.id);
 
   if (!trade) {
@@ -73,6 +78,25 @@ export const buyEnergy = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: 'You cannot buy your own energy listing' });
   }
 
+  // Check buyer and seller profiles
+  const buyerProfile = await Profile.findOne({ user: req.user.id });
+  if (!buyerProfile) {
+    return res.status(404).json({ success: false, error: 'Buyer profile not found' });
+  }
+
+  if (buyerProfile.balance < trade.totalAmount) {
+    return res.status(400).json({ success: false, error: 'Insufficient funds in your account balance' });
+  }
+
+  const sellerProfile = await Profile.findOne({ user: trade.seller });
+  if (!sellerProfile) {
+    return res.status(404).json({ success: false, error: 'Seller profile not found' });
+  }
+
+  // Deduct from buyer, add to seller
+  buyerProfile.balance -= trade.totalAmount;
+  sellerProfile.balance += trade.totalAmount;
+
   // Set buyer and status
   trade.buyer = req.user.id;
   trade.status = 'Completed';
@@ -83,28 +107,22 @@ export const buyEnergy = asyncHandler(async (req, res) => {
   console.log(`Platform commission collected: $${commission.toFixed(2)}`);
 
   // Award rewards to buyer & seller
-  const buyerProfile = await Profile.findOne({ user: req.user.id });
-  if (buyerProfile) {
-    buyerProfile.rewardPoints += 30;
-    if (!buyerProfile.badges.includes('Eco Buyer')) {
-      buyerProfile.badges.push('Eco Buyer');
-    }
-    buyerProfile.achievements.push({
-      title: 'P2P Energy Trade Complete',
-      description: `Bought ${trade.unitsKwh} kWh of green energy from peer.`,
-    });
-    await buyerProfile.save();
+  buyerProfile.rewardPoints += 30;
+  if (!buyerProfile.badges.includes('Eco Buyer')) {
+    buyerProfile.badges.push('Eco Buyer');
   }
+  buyerProfile.achievements.push({
+    title: 'P2P Energy Trade Complete',
+    description: `Bought ${trade.unitsKwh} kWh of green energy from peer.`,
+  });
+  await buyerProfile.save();
 
-  const sellerProfile = await Profile.findOne({ user: trade.seller });
-  if (sellerProfile) {
-    sellerProfile.rewardPoints += 50;
-    sellerProfile.achievements.push({
-      title: 'Green Merchant',
-      description: `Sold ${trade.unitsKwh} kWh of surplus clean power.`,
-    });
-    await sellerProfile.save();
-  }
+  sellerProfile.rewardPoints += 50;
+  sellerProfile.achievements.push({
+    title: 'Green Merchant',
+    description: `Sold ${trade.unitsKwh} kWh of surplus clean power.`,
+  });
+  await sellerProfile.save();
 
   // Send notifications
   await Notification.create({
@@ -160,16 +178,43 @@ export const getAllTradesAdmin = asyncHandler(async (req, res) => {
 // @route   POST /api/marketplace/buy-direct
 // @access  Private
 export const buyDirectPlantEnergy = asyncHandler(async (req, res) => {
+  if (req.user.role === 'Admin') {
+    return res.status(403).json({ success: false, error: 'Admins cannot buy energy' });
+  }
+
   const { plantId, unitsKwh, ratePerUnit, totalAmount } = req.body;
 
   if (!plantId || !unitsKwh || !ratePerUnit || !totalAmount) {
     return res.status(400).json({ success: false, error: 'Please provide plantId, units, rate, and amount' });
   }
 
+  // Find buyer profile
+  const profile = await Profile.findOne({ user: req.user.id });
+  if (!profile) {
+    return res.status(404).json({ success: false, error: 'Buyer profile not found' });
+  }
+
+  if (profile.balance < totalAmount) {
+    return res.status(400).json({ success: false, error: 'Insufficient funds in your account balance' });
+  }
+
+  // Find company/admin user and add funds
+  const adminUser = await User.findOne({ role: 'Admin' });
+  if (adminUser) {
+    const adminProfile = await Profile.findOne({ user: adminUser._id });
+    if (adminProfile) {
+      adminProfile.balance += totalAmount;
+      await adminProfile.save();
+    }
+  }
+
+  // Deduct from buyer
+  profile.balance -= totalAmount;
+
   // Create a completed trade record
   const trade = await EnergyTrade.create({
     buyer: req.user.id,
-    seller: null, // null represents utility solar plant
+    seller: adminUser ? adminUser._id : req.user.id, // seller represents Admin/Company for direct solar plants
     unitsKwh,
     pricePerUnit: ratePerUnit,
     totalAmount,
@@ -177,14 +222,11 @@ export const buyDirectPlantEnergy = asyncHandler(async (req, res) => {
   });
 
   // Award reward points
-  const profile = await Profile.findOne({ user: req.user.id });
-  if (profile) {
-    profile.rewardPoints += Math.floor(unitsKwh * 0.1); // 10% points
-    if (!profile.badges.includes('Eco Buyer')) {
-      profile.badges.push('Eco Buyer');
-    }
-    await profile.save();
+  profile.rewardPoints += Math.floor(unitsKwh * 0.1); // 10% points
+  if (!profile.badges.includes('Eco Buyer')) {
+    profile.badges.push('Eco Buyer');
   }
+  await profile.save();
 
   await Notification.create({
     user: req.user.id,

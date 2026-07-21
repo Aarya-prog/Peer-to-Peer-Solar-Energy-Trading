@@ -190,8 +190,12 @@ const Profile = () => {
               <p className="font-bold text-brand">{profile?.rewardPoints || 0} pts</p>
             </div>
             <div>
+              <p className="text-xs text-slate-400 font-medium">WALLET BALANCE</p>
+              <p className="font-bold text-brand-emerald">₹{profile?.balance?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div>
               <p className="text-xs text-slate-400 font-medium">MY REFERRAL</p>
-              <p className="font-bold text-brand-emerald">{profile?.referralCode || 'N/A'}</p>
+              <p className="font-bold text-slate-500 dark:text-slate-400">{profile?.referralCode || 'N/A'}</p>
             </div>
           </div>
         </div>

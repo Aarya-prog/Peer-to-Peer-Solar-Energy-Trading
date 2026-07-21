@@ -3,9 +3,23 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { FiUsers, FiDollarSign, FiZap, FiBriefcase, FiArrowRight, FiActivity } from 'react-icons/fi';
 import { Spinner } from '../components/Loader';
+
+// Register ChartJS elements
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);

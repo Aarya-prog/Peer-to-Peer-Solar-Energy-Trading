@@ -209,8 +209,14 @@ const CustomerDashboard = () => {
           <h2 className="text-2xl font-bold tracking-tight">Welcome back, {profile?.user.name}!</h2>
           <p className="text-sm text-slate-400 mt-1">Check out your smart meter activity and clean power logs.</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-6">
           <div className="text-right">
+            <p className="text-xs font-semibold text-slate-400 uppercase">Wallet Balance</p>
+            <p className="text-2xl font-black text-brand-emerald">
+              ₹{profile?.balance?.toFixed(2) || '0.00'}
+            </p>
+          </div>
+          <div className="text-right border-l border-slate-200 dark:border-slate-800 pl-6">
             <p className="text-xs font-semibold text-slate-400 uppercase">Rewards Points</p>
             <p className="text-2xl font-black text-brand flex items-center justify-end gap-1">
               <FiAward /> {profile?.rewardPoints || 0}

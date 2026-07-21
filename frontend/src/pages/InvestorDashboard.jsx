@@ -3,10 +3,24 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { FiTrendingUp, FiDollarSign, FiAward, FiArrowRight, FiActivity, FiBriefcase, FiRefreshCw, FiGrid, FiList } from 'react-icons/fi';
 import { Spinner } from '../components/Loader';
 import Modal from '../components/Modal';
+
+// Register ChartJS elements
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 const InvestorDashboard = () => {
   const [portfolio, setPortfolio] = useState(null);

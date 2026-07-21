@@ -277,12 +277,18 @@ const Marketplace = () => {
                       <p className="text-[10px] text-slate-400 font-medium">TOTAL COST</p>
                       <p className="font-bold text-sm">₹{list.totalAmount.toFixed(2)}</p>
                     </div>
-                    <button
-                      onClick={() => openCheckout(list)}
-                      className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark transition-all"
-                    >
-                      Buy Energy
-                    </button>
+                    {userProfile?.user?.role === 'Admin' ? (
+                      <span className="text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900/50 px-3 py-1.5 rounded-full">
+                        Company Seller Only
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => openCheckout(list)}
+                        className="rounded-full bg-brand px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-dark transition-all"
+                      >
+                        Buy Energy
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -337,16 +343,22 @@ const Marketplace = () => {
                   </div>
 
                   <div className="pt-4">
-                    <button
-                      onClick={() => openPlantCheckout(p)}
-                      className={`w-full text-center rounded-2xl py-2.5 text-xs font-bold transition-all shadow-md ${
-                        isNearbyPlant 
-                          ? 'bg-brand text-white hover:bg-brand-dark shadow-green-500/25' 
-                          : 'bg-slate-150 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      Buy Direct Power
-                    </button>
+                    {userProfile?.user?.role === 'Admin' ? (
+                      <div className="w-full text-center py-2.5 text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900/50 rounded-2xl">
+                        Company Utility (Sale Only)
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => openPlantCheckout(p)}
+                        className={`w-full text-center rounded-2xl py-2.5 text-xs font-bold transition-all shadow-md ${
+                          isNearbyPlant 
+                            ? 'bg-brand text-white hover:bg-brand-dark shadow-green-500/25' 
+                            : 'bg-slate-150 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Buy Direct Power
+                      </button>
+                    )}
                   </div>
                 </div>
               );

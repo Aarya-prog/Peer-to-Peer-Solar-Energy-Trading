@@ -83,6 +83,10 @@ export const deletePlan = asyncHandler(async (req, res) => {
 // @route   POST /api/subscriptions/subscribe
 // @access  Private
 export const subscribeToPlan = asyncHandler(async (req, res) => {
+  if (req.user.role === 'Admin') {
+    return res.status(403).json({ success: false, error: 'Admins cannot subscribe to plans' });
+  }
+
   const { planId, months } = req.body;
 
   const plan = await Plan.findById(planId);

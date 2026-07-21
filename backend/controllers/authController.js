@@ -45,6 +45,10 @@ const sendTokenResponse = (user, statusCode, res, rememberMe = false) => {
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password, role, referralCode } = req.body;
 
+  if (role === 'Admin') {
+    return res.status(400).json({ success: false, error: 'Registration with Admin role is not allowed' });
+  }
+
   // Check if user exists
   const existingUser = await User.findOne({ email });
   if (existingUser) {
