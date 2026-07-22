@@ -8,6 +8,7 @@ import Project from '../models/Project.js';
 import Investment from '../models/Investment.js';
 import InvestorAgreement from '../models/InvestorAgreement.js';
 import User from '../models/User.js';
+import Subscription from '../models/Subscription.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // Simulated Dummy Bank Payment Gateway Card Switch
@@ -365,14 +366,15 @@ export const verifyPaymentSignature = asyncHandler(async (req, res) => {
 // @route   POST /api/billing/mock-invoice
 // @access  Private
 export const generateMockBill = asyncHandler(async (req, res) => {
-  const profile = await Profile.findOne({ user: req.user.id }).populate('activePlan');
+  const profile = await Profile.findOne({ user: req.user.id });
+  const subscription = await Subscription.findOne({ user: req.user.id, status: 'Active' }).populate('plan');
   
   let ratePerUnit = 8.0; // standard default INR rate
   let planName = 'Standard Default';
   
-  if (profile && profile.activePlan) {
-    ratePerUnit = profile.activePlan.ratePerUnit;
-    planName = profile.activePlan.name;
+  if (subscription && subscription.plan) {
+    ratePerUnit = subscription.plan.ratePerUnit;
+    planName = subscription.plan.name;
   }
   
   // Mock smart meter consumption between 120 and 320 kWh
@@ -411,8 +413,8 @@ export const generateMockBill = asyncHandler(async (req, res) => {
       checkoutId: paymentReference,
       signature: 'AutoPay_Verified_Transaction',
       referenceId: bill._id,
-      status: 'Completed',
-      method: autopay.paymentMethod,
+      status: 'Success',
+      method: (autopay.paymentMethod && autopay.paymentMethod.toLowerCase().includes('wallet')) ? 'Wallet' : 'Card',
     });
 
     // Add points to profile

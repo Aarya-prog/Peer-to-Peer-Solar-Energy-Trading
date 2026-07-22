@@ -54,6 +54,7 @@ const InvestorDashboard = () => {
   // Payout & Deposit States
   const [userProfile, setUserProfile] = useState(null);
   const [simulatingPayouts, setSimulatingPayouts] = useState(false);
+  const [autoPayoutEnabled, setAutoPayoutEnabled] = useState(false);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [depositing, setDepositing] = useState(false);
@@ -77,6 +78,7 @@ const InvestorDashboard = () => {
       const profileRes = await api.get('/users/profile');
       if (profileRes.data.success) {
         setUserProfile(profileRes.data.data);
+        setAutoPayoutEnabled(profileRes.data.data.preferences?.autoPayoutEnabled || false);
       }
     } catch (err) {
       toast.error('Failed to load portfolio details');
@@ -88,6 +90,47 @@ const InvestorDashboard = () => {
   useEffect(() => {
     fetchPortfolio();
   }, []);
+
+  useEffect(() => {
+    let intervalId;
+    if (autoPayoutEnabled) {
+      const runAutoPayoutSilent = async () => {
+        try {
+          const res = await api.post('/investments/simulate-payouts');
+          if (res.data.success && res.data.totalPayoutAmount > 0) {
+            toast.success(`Auto-Payout Credited: +₹${res.data.totalPayoutAmount.toLocaleString('en-IN')}`);
+            fetchPortfolio();
+          }
+        } catch (err) {
+          console.error('Silent auto payout simulation failed:', err);
+        }
+      };
+
+      // Run immediately when enabled or loaded
+      runAutoPayoutSilent();
+      
+      // Periodically run simulation every 10 seconds to simulate time progression
+      intervalId = setInterval(runAutoPayoutSilent, 10000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [autoPayoutEnabled]);
+
+  const handleToggleAutoPayout = async () => {
+    const nextVal = !autoPayoutEnabled;
+    setAutoPayoutEnabled(nextVal);
+    try {
+      await api.put('/users/profile', {
+        preferences: { autoPayoutEnabled: nextVal }
+      });
+      toast.success(nextVal ? 'Auto-Payout simulation active! Returns will credit automatically.' : 'Auto-Payout simulation disabled.');
+    } catch (err) {
+      toast.error('Failed to update Auto-Payout settings');
+      setAutoPayoutEnabled(!nextVal);
+    }
+  };
 
   const handleKycSubmit = async (e) => {
     e.preventDefault();
@@ -293,10 +336,10 @@ const InvestorDashboard = () => {
           {/* Simulate auto payout button */}
           <button
             onClick={handleSimulatePayouts}
-            disabled={simulatingPayouts}
+            disabled={simulatingPayouts || autoPayoutEnabled}
             className="bg-brand/10 border border-brand/20 hover:bg-brand hover:text-white text-brand px-4 py-2.5 rounded-2xl text-xs font-bold transition-all disabled:opacity-50"
           >
-            {simulatingPayouts ? 'Calculating Payouts...' : 'Simulate Auto-Payouts'}
+            {simulatingPayouts ? 'Calculating Payouts...' : (autoPayoutEnabled ? 'Auto-Payout Active' : 'Simulate Payouts')}
           </button>
 
           <div className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-xs font-bold ${tier.color}`}>
@@ -429,7 +472,28 @@ const InvestorDashboard = () => {
           </div>
 
           <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-4">
+            {/* Auto-Payout Toggle */}
             <div className="flex justify-between items-center">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 dark:text-white">Auto-Payout</h4>
+                <p className="text-[10px] text-slate-400">Credit ROI payouts automatically as per cycle</p>
+              </div>
+              <button
+                onClick={handleToggleAutoPayout}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                  autoPayoutEnabled ? 'bg-brand' : 'bg-slate-200 dark:bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    autoPayoutEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Auto-Reinvest Toggle */}
+            <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-900 pt-3">
               <div>
                 <h4 className="text-xs font-bold text-slate-800 dark:text-white">Auto-Reinvest</h4>
                 <p className="text-[10px] text-slate-400">Reinvest returns into new solar field arrays</p>
@@ -451,11 +515,19 @@ const InvestorDashboard = () => {
         </div>
       </div>
 
-      {/* Portfolio Holdings Table */}
+      {/* Recent Holdings Summary */}
       <div className="glass-panel rounded-3xl shadow-glass overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-          <FiGrid className="text-brand" />
-          <h3 className="font-bold text-slate-800 dark:text-white">Lock-in Holdings Ledger</h3>
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FiGrid className="text-brand" />
+            <h3 className="font-bold text-slate-800 dark:text-white">Recent Holdings Summary</h3>
+          </div>
+          <Link
+            to="/investor/portfolio"
+            className="text-xs text-brand hover:underline font-bold"
+          >
+            View All Assets →
+          </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[700px]">
@@ -465,32 +537,24 @@ const InvestorDashboard = () => {
                 <th className="px-6 py-4">Plan Duration</th>
                 <th className="px-6 py-4">Principal Amount</th>
                 <th className="px-6 py-4">Maturity Date</th>
-                <th className="px-6 py-4">Days Remaining</th>
                 <th className="px-6 py-4">Lock Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
               {!portfolio?.investmentsList || portfolio.investmentsList.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-10 text-center text-slate-400">
-                    No active holdings found in your portfolio.
+                  <td colSpan="5" className="px-6 py-10 text-center text-slate-400">
+                    No holdings found in your portfolio.
                   </td>
                 </tr>
               ) : (
-                portfolio.investmentsList.map((inv) => {
-                  const daysLeft = Math.max(0, Math.ceil((new Date(inv.maturityDate) - new Date()) / (1000 * 60 * 60 * 24)));
-                  const isMatured = inv.status === 'Matured' || inv.status === 'Withdrawn';
-                  
+                portfolio.investmentsList.slice(0, 3).map((inv) => {
                   return (
                     <tr key={inv._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all">
-                      <td className="px-6 py-4 font-semibold">{inv.project?.name}</td>
+                      <td className="px-6 py-4 font-semibold text-slate-800 dark:text-white">{inv.project?.name}</td>
                       <td className="px-6 py-4 text-slate-400">{inv.durationMonths} Months Plan</td>
-                      <td className="px-6 py-4 font-bold">₹{inv.amount.toLocaleString('en-IN')}</td>
+                      <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">₹{inv.amount.toLocaleString('en-IN')}</td>
                       <td className="px-6 py-4 text-slate-400">{new Date(inv.maturityDate).toLocaleDateString()}</td>
-                      <td className="px-6 py-4 font-bold text-orange-500">
-                        {inv.status === 'Locked' || inv.status === 'Active' ? `${daysLeft} Days` : '0 Days'}
-                      </td>
                       <td className="px-6 py-4">
                         <span
                           className={`rounded-full px-2 py-0.5 text-xs font-bold flex items-center gap-1 w-fit ${
@@ -513,23 +577,6 @@ const InvestorDashboard = () => {
                             'Withdrawn'
                           )}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        {inv.status === 'Matured' ? (
-                          <button
-                            onClick={() => handleWithdrawInvestment(inv._id)}
-                            disabled={withdrawingIds[inv._id]}
-                            className="bg-brand text-white px-3 py-1 rounded-full text-xs font-bold hover:bg-brand-dark disabled:opacity-50 transition-all"
-                          >
-                            {withdrawingIds[inv._id] ? 'Submitting...' : 'Withdraw Payout'}
-                          </button>
-                        ) : inv.status === 'Withdrawn' ? (
-                          <span className="text-xs text-slate-400 font-bold">Payout Completed</span>
-                        ) : (
-                          <span className="text-xs text-slate-400 flex items-center justify-end gap-1">
-                            <FiLock /> Locked until maturity
-                          </span>
-                        )}
                       </td>
                     </tr>
                   );

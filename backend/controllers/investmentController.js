@@ -460,5 +460,7 @@ export const simulateROIPayouts = asyncHandler(async (req, res) => {
     success: true,
     message: `Successfully processed auto-payout simulation. Total credited to wallet: ₹${totalPayoutAmount.toLocaleString('en-IN')}`,
     balance: profile.balance,
+    payoutsDispatched,
+    totalPayoutAmount,
   });
 });

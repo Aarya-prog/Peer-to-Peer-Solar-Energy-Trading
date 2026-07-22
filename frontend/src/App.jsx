@@ -39,6 +39,7 @@ import CustomerMetrics from './pages/CustomerMetrics';
 
 // Investor Pages
 import InvestorDashboard from './pages/InvestorDashboard';
+import InvestorPortfolio from './pages/InvestorPortfolio';
 import ProjectsExplorer from './pages/ProjectsExplorer';
 
 // Admin Pages
@@ -105,7 +106,7 @@ const App = () => {
 
               {/* Investor Routes */}
               <Route path="/investor/dashboard" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><InvestorDashboard /></DashboardLayout></ProtectedRoute>} />
-              <Route path="/investor/portfolio" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><InvestorDashboard /></DashboardLayout></ProtectedRoute>} />
+              <Route path="/investor/portfolio" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><InvestorPortfolio /></DashboardLayout></ProtectedRoute>} />
               <Route path="/investments/projects" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><ProjectsExplorer /></DashboardLayout></ProtectedRoute>} />
               <Route path="/investor/wallet" element={<ProtectedRoute allowedRoles={['Investor']}><DashboardLayout><CustomerWallet /></DashboardLayout></ProtectedRoute>} />
 

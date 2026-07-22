@@ -48,6 +48,7 @@ const profileSchema = new mongoose.Schema(
     preferences: {
       notificationsEnabled: { type: Boolean, default: true },
       themeMode: { type: String, enum: ['light', 'dark'], default: 'light' },
+      autoPayoutEnabled: { type: Boolean, default: false },
     },
     referralCode: {
       type: String,
