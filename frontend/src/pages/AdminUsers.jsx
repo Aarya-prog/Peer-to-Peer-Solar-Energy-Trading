@@ -79,7 +79,7 @@ const AdminUsers = () => {
     try {
       const res = await api.put(`/kyc/admin/${kycId}/status`, { status, rejectionReason: reason });
       if (res.data.success) {
-        toast.success(`Investor KYC set to ${status}!`, { id: loader });
+        toast.success(`KYC set to ${status}!`, { id: loader });
         fetchAllData();
       }
     } catch (err) {
@@ -132,7 +132,7 @@ const AdminUsers = () => {
             activeTab === 'KYC' ? 'bg-brand text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
-          <FiFileText /> Investor KYC Review
+          <FiFileText /> KYC Review
           {pendingKycCount > 0 && (
             <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full text-[9px] w-5 h-5 flex items-center justify-center font-bold">
               {pendingKycCount}
