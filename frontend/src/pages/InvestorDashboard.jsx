@@ -58,6 +58,8 @@ const InvestorDashboard = () => {
   const [depositModalOpen, setDepositModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [depositing, setDepositing] = useState(false);
+  const [depPaymentMethod, setDepPaymentMethod] = useState('Card'); // 'Card' or 'UPI'
+  const [depUpiId, setDepUpiId] = useState('');
   const [depCardName, setDepCardName] = useState('');
   const [depCardNumber, setDepCardNumber] = useState('');
   const [depCardExpiry, setDepCardExpiry] = useState('');
@@ -204,6 +206,11 @@ const InvestorDashboard = () => {
     if (isNaN(amt) || amt <= 0) {
       return toast.error('Please enter a valid deposit amount');
     }
+
+    if (depPaymentMethod === 'UPI' && (!depUpiId || !depUpiId.includes('@'))) {
+      return toast.error('Please enter a valid UPI ID (e.g. username@bank)');
+    }
+
     setDepositing(true);
     const toastLoader = toast.loading('Authorizing payment secure deposit...');
     try {
@@ -219,13 +226,14 @@ const InvestorDashboard = () => {
       const verifyRes = await api.post('/billing/payments/verify-signature', {
         checkoutId,
         signature,
-        paymentMethod: 'Credit Card',
-        cardDetails: {
+        paymentMethod: depPaymentMethod,
+        cardDetails: depPaymentMethod === 'Card' ? {
           name: depCardName,
-          number: depCardNumber,
+          number: depCardNumber.replace(/\s/g, ''),
           expiry: depCardExpiry,
           cvv: depCardCvv,
-        }
+        } : undefined,
+        upiId: depPaymentMethod === 'UPI' ? depUpiId : undefined
       });
 
       if (verifyRes.data.success) {
@@ -326,7 +334,16 @@ const InvestorDashboard = () => {
               <p className="font-extrabold text-brand-emerald text-sm">₹{userProfile?.data?.balance?.toLocaleString('en-IN') || userProfile?.balance?.toLocaleString('en-IN') || '0.00'}</p>
             </div>
             <button
-              onClick={() => setDepositModalOpen(true)}
+              onClick={() => {
+                setDepositAmount('');
+                setDepCardName('');
+                setDepCardNumber('');
+                setDepCardExpiry('');
+                setDepCardCvv('');
+                setDepPaymentMethod('Card');
+                setDepUpiId('');
+                setDepositModalOpen(true);
+              }}
               className="bg-brand text-white px-2.5 py-1 rounded-xl text-[10px] font-bold hover:bg-brand-dark transition-all"
             >
               + Deposit
@@ -808,67 +825,130 @@ const InvestorDashboard = () => {
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 block mb-1">CARDHOLDER NAME</label>
-            <input
-              type="text"
-              required
-              value={depCardName}
-              onChange={(e) => setDepCardName(e.target.value)}
-              placeholder="Full Name"
-              className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
-            />
+          {/* Payment Method Selector Tabs */}
+          <div className="flex rounded-full bg-slate-100 dark:bg-slate-900 p-1 mb-2">
+            <button
+              type="button"
+              onClick={() => setDepPaymentMethod('Card')}
+              className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                depPaymentMethod === 'Card'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+              }`}
+            >
+              Credit / Debit Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setDepPaymentMethod('UPI')}
+              className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                depPaymentMethod === 'UPI'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+              }`}
+            >
+              UPI Transfer
+            </button>
           </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 block mb-1">CARD NUMBER</label>
-            <input
-              type="text"
-              required
-              value={depCardNumber}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '').substring(0, 16);
-                const parts = [];
-                for (let i = 0; i < val.length; i += 4) {
-                  parts.push(val.substring(i, i + 4));
-                }
-                setDepCardNumber(parts.length > 0 ? parts.join(' ') : val);
-              }}
-              placeholder="4111 2222 3333 4444"
-              className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
-            />
-          </div>
+          {depPaymentMethod === 'Card' ? (
+            <>
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDepCardName('Aditya Sharma');
+                    setDepCardNumber('4111 2222 3333 4444');
+                    setDepCardExpiry('12/29');
+                    setDepCardCvv('123');
+                  }}
+                  className="text-[10px] text-brand hover:underline font-bold focus:outline-none"
+                >
+                  ⚡ Use Demo Card
+                </button>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">CARDHOLDER NAME</label>
+                <input
+                  type="text"
+                  required={depPaymentMethod === 'Card'}
+                  value={depCardName}
+                  onChange={(e) => setDepCardName(e.target.value)}
+                  placeholder="Full Name"
+                  className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">EXPIRY DATE</label>
-              <input
-                type="text"
-                required
-                value={depCardExpiry}
-                onChange={(e) => {
-                  let val = e.target.value.replace(/\D/g, '').substring(0, 4);
-                  if (val.length >= 2) {
-                    val = `${val.substring(0, 2)}/${val.substring(2)}`;
-                  }
-                  setDepCardExpiry(val);
-                }}
-                placeholder="MM/YY"
-                className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
-              />
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 block mb-1">CARD NUMBER</label>
+                <input
+                  type="text"
+                  required={depPaymentMethod === 'Card'}
+                  value={depCardNumber}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').substring(0, 16);
+                    const parts = [];
+                    for (let i = 0; i < val.length; i += 4) {
+                      parts.push(val.substring(i, i + 4));
+                    }
+                    setDepCardNumber(parts.length > 0 ? parts.join(' ') : val);
+                  }}
+                  placeholder="4111 2222 3333 4444"
+                  className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">EXPIRY DATE</label>
+                  <input
+                    type="text"
+                    required={depPaymentMethod === 'Card'}
+                    value={depCardExpiry}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '').substring(0, 4);
+                      if (val.length >= 2) {
+                        val = `${val.substring(0, 2)}/${val.substring(2)}`;
+                      }
+                      setDepCardExpiry(val);
+                    }}
+                    placeholder="MM/YY"
+                    className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">CVV</label>
+                  <input
+                    type="password"
+                    required={depPaymentMethod === 'Card'}
+                    value={depCardCvv}
+                    onChange={(e) => setDepCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
+                    placeholder="•••"
+                    className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50/50 dark:bg-slate-900/20 text-center space-y-2">
+                <span className="text-4xl block">📱</span>
+                <h4 className="font-bold text-sm text-slate-800 dark:text-white">Deposit via UPI</h4>
+                <p className="text-[11px] text-slate-500">Enter your UPI VPA ID to simulate a deposit transaction.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">UPI ID / VPA</label>
+                <input
+                  type="text"
+                  required={depPaymentMethod === 'UPI'}
+                  value={depUpiId}
+                  onChange={(e) => setDepUpiId(e.target.value)}
+                  placeholder="e.g. username@bank"
+                  className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 block mb-1">CVV</label>
-              <input
-                type="password"
-                required
-                value={depCardCvv}
-                onChange={(e) => setDepCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
-                placeholder="•••"
-                className="w-full px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
-              />
-            </div>
-          </div>
+          )}
 
           <button
             type="submit"

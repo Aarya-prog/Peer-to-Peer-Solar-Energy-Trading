@@ -26,7 +26,8 @@ const Billing = () => {
   const [cardCvv, setCardCvv] = useState('');
   const [paying, setPaying] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [selectedPayMethod, setSelectedPayMethod] = useState('Card'); // 'Card' or 'Wallet'
+  const [selectedPayMethod, setSelectedPayMethod] = useState('Card'); // 'Card', 'Wallet', or 'UPI'
+  const [upiId, setUpiId] = useState('');
 
   // Invoice Print Modal States
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -123,6 +124,7 @@ const Billing = () => {
     setCardExpiry('');
     setCardCvv('');
     setSelectedPayMethod('Card');
+    setUpiId('');
     setCheckoutModalOpen(true);
   };
 
@@ -132,6 +134,10 @@ const Billing = () => {
 
     if (selectedPayMethod === 'Wallet' && walletBalance < activeBill.totalAmount) {
       return toast.error(`Insufficient wallet balance. Available: ₹${walletBalance.toLocaleString('en-IN')}, Required: ₹${activeBill.totalAmount.toLocaleString('en-IN')}`);
+    }
+
+    if (selectedPayMethod === 'UPI' && (!upiId || !upiId.includes('@'))) {
+      return toast.error('Please enter a valid UPI ID (e.g. username@bank)');
     }
 
     setPaying(true);
@@ -152,13 +158,14 @@ const Billing = () => {
       const verifyRes = await api.post('/billing/payments/verify-signature', {
         checkoutId,
         signature,
-        paymentMethod: selectedPayMethod === 'Wallet' ? 'Wallet' : 'Credit Card',
+        paymentMethod: selectedPayMethod,
         cardDetails: selectedPayMethod === 'Card' ? {
           name: cardName,
-          number: cardNumber,
+          number: cardNumber.replace(/\s/g, ''),
           expiry: cardExpiry,
           cvv: cardCvv,
-        } : undefined
+        } : undefined,
+        upiId: selectedPayMethod === 'UPI' ? upiId : undefined
       });
 
       if (verifyRes.data.success) {
@@ -495,6 +502,17 @@ const Billing = () => {
               >
                 SolarPay Wallet
               </button>
+              <button
+                type="button"
+                onClick={() => setSelectedPayMethod('UPI')}
+                className={`flex-1 text-center py-2 text-xs font-bold rounded-full transition-all ${
+                  selectedPayMethod === 'UPI'
+                    ? 'bg-brand text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-350'
+                }`}
+              >
+                UPI Transfer
+              </button>
             </div>
 
             {selectedPayMethod === 'Card' ? (
@@ -594,7 +612,7 @@ const Billing = () => {
                   </button>
                 </form>
               </>
-            ) : (
+            ) : selectedPayMethod === 'Wallet' ? (
               <form onSubmit={handlePayBillSubmit} className="space-y-4">
                 <div className="glass-panel p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
                   <div className="flex justify-between items-center text-xs">
@@ -625,6 +643,32 @@ const Billing = () => {
                   className="w-full rounded-2xl bg-brand hover:bg-brand-dark py-3.5 text-sm font-semibold text-white transition-all shadow-lg disabled:opacity-50"
                 >
                   {paying ? 'Deducting from wallet...' : `Confirm Wallet Payment (₹${activeBill.totalAmount.toFixed(2)})`}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handlePayBillSubmit} className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-5 bg-slate-50/50 dark:bg-slate-900/20 text-center space-y-2">
+                  <span className="text-4xl block">📱</span>
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-white">Pay Instantly via UPI App</h4>
+                  <p className="text-[11px] text-slate-500">Enter your UPI VPA address to trigger a collection request in your BHIM, Google Pay, PhonePe, or Paytm app.</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">UPI ID / VPA</label>
+                  <input
+                    type="text"
+                    required={selectedPayMethod === 'UPI'}
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. username@bank"
+                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 text-sm focus:outline-none focus:border-brand"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={paying}
+                  className="w-full rounded-2xl bg-brand hover:bg-brand-dark py-3.5 text-sm font-semibold text-white transition-all shadow-lg"
+                >
+                  {paying ? 'Authorizing UPI payment...' : `Pay ₹${activeBill.totalAmount.toFixed(2)}`}
                 </button>
               </form>
             )}

@@ -36,6 +36,7 @@ const Sidebar = () => {
     ],
     Investor: [
       { name: 'Dashboard', path: '/investor/dashboard', icon: <FiGrid /> },
+      { name: 'My Wallet', path: '/investor/wallet', icon: <FiDollarSign /> },
       { name: 'Explore Projects', path: '/investments/projects', icon: <FiBriefcase /> },
       { name: 'My Portfolio', path: '/investor/portfolio', icon: <FiTrendingUp /> },
       { name: 'Help Support', path: '/support/tickets', icon: <FiHelpCircle /> },

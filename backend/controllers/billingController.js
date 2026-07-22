@@ -117,17 +117,18 @@ export const createPaymentIntent = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, error: 'Please provide amount, transaction type, and referenceId' });
   }
 
+  const normalizedAmount = Number(amount);
   const checkoutId = `PAY-${crypto.randomUUID()}`;
   const secretKey = process.env.SOLARPAY_SECRET_KEY || 'solarpay_secure_gateway_private_hmac_secret_key';
 
   // Cryptographically sign the checkout parameters to verify integrity on callback
-  const signPayload = `${checkoutId}|${amount}|${referenceId}|${req.user.id}`;
+  const signPayload = `${checkoutId}|${normalizedAmount}|${referenceId}|${req.user.id}`;
   const signature = crypto.createHmac('sha256', secretKey).update(signPayload).digest('hex');
 
   // Create payment record
   const payment = await Payment.create({
     user: req.user.id,
-    amount,
+    amount: normalizedAmount,
     type,
     checkoutId,
     signature,
@@ -174,7 +175,7 @@ export const verifyPaymentSignature = asyncHandler(async (req, res) => {
   const secretKey = process.env.SOLARPAY_SECRET_KEY || 'solarpay_secure_gateway_private_hmac_secret_key';
 
   // Rebuild verification hash
-  const signPayload = `${checkoutId}|${payment.amount}|${payment.referenceId}|${req.user.id}`;
+  const signPayload = `${checkoutId}|${Number(payment.amount)}|${payment.referenceId}|${req.user.id}`;
   const localSignature = crypto.createHmac('sha256', secretKey).update(signPayload).digest('hex');
 
   if (localSignature !== signature) {
@@ -186,7 +187,8 @@ export const verifyPaymentSignature = asyncHandler(async (req, res) => {
 
   // If payment method is Card, validate card details through Dummy Bank
   const resolvedMethod = paymentMethod && paymentMethod.toLowerCase().includes('wallet') ? 'Wallet' :
-                         paymentMethod && paymentMethod.toLowerCase().includes('card') ? 'Card' : 'Other';
+                         paymentMethod && paymentMethod.toLowerCase().includes('card') ? 'Card' :
+                         paymentMethod && paymentMethod.toLowerCase().includes('upi') ? 'UPI' : 'Other';
   
   if (resolvedMethod === 'Card') {
     const bankAuth = validateDummyBankCard(cardDetails);
@@ -198,11 +200,19 @@ export const verifyPaymentSignature = asyncHandler(async (req, res) => {
     }
   }
 
-  const profile = await Profile.findOne({ user: req.user.id });
-  if (paymentMethod && paymentMethod.toLowerCase().includes('wallet')) {
-    if (!profile) {
-      return res.status(404).json({ success: false, error: 'User profile not found.' });
+  if (resolvedMethod === 'UPI') {
+    const { upiId } = req.body;
+    if (!upiId || !upiId.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Please provide a valid UPI ID (e.g., username@bank)' });
     }
+  }
+
+  const profile = await Profile.findOne({ user: req.user.id });
+  if (!profile) {
+    return res.status(404).json({ success: false, error: 'User profile not found.' });
+  }
+
+  if (paymentMethod && paymentMethod.toLowerCase().includes('wallet')) {
     if (profile.balance < payment.amount) {
       console.error('verify-signature error: insufficient wallet balance', { balance: profile.balance, amount: payment.amount });
       payment.status = 'Failed';
@@ -214,7 +224,13 @@ export const verifyPaymentSignature = asyncHandler(async (req, res) => {
 
   payment.status = 'Success';
   if (paymentMethod) {
-    payment.method = paymentMethod.toLowerCase().includes('wallet') ? 'Wallet' : 'Card';
+    if (paymentMethod.toLowerCase().includes('wallet')) {
+      payment.method = 'Wallet';
+    } else if (paymentMethod.toLowerCase().includes('upi')) {
+      payment.method = 'UPI';
+    } else {
+      payment.method = 'Card';
+    }
   }
   await payment.save();
 

@@ -24,7 +24,8 @@ const ProjectsExplorer = () => {
   const [pdfViewOpen, setPdfViewOpen] = useState(false);
 
   // Payment states
-  const [paymentMethod, setPaymentMethod] = useState('Card'); // 'Card' or 'Wallet'
+  const [paymentMethod, setPaymentMethod] = useState('Card'); // 'Card', 'Wallet', or 'UPI'
+  const [upiId, setUpiId] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -88,6 +89,7 @@ const ProjectsExplorer = () => {
     setAgreementAccepted(false);
     setDurationMonths('12');
     setPaymentMethod('Card');
+    setUpiId('');
     setCardName('');
     setCardNumber('');
     setCardExpiry('');
@@ -125,6 +127,10 @@ const ProjectsExplorer = () => {
       return toast.error(`Insufficient wallet balance. Available: ₹${userProfile.balance.toLocaleString('en-IN')}`);
     }
 
+    if (paymentMethod === 'UPI' && (!upiId || !upiId.includes('@'))) {
+      return toast.error('Please enter a valid UPI ID (e.g. username@bank)');
+    }
+
     setInvesting(true);
     const toastLoader = toast.loading('Processing secure investment checkout...');
     try {
@@ -143,13 +149,14 @@ const ProjectsExplorer = () => {
       const verifyRes = await api.post('/billing/payments/verify-signature', {
         checkoutId,
         signature,
-        paymentMethod: paymentMethod === 'Wallet' ? 'Wallet' : 'Card',
+        paymentMethod: paymentMethod,
         cardDetails: paymentMethod === 'Card' ? {
           name: cardName,
           number: cardNumber.replace(/\s/g, ''),
           expiry: cardExpiry,
           cvv: cardCvv,
         } : null,
+        upiId: paymentMethod === 'UPI' ? upiId : undefined,
         legalNameSignature,
         agreementAccepted,
         durationMonths: parseInt(durationMonths),
@@ -375,28 +382,39 @@ const ProjectsExplorer = () => {
             {/* Payment Method Selector */}
             <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-850">
               <label className="text-[10px] font-bold text-slate-400 block">SELECT PAYMENT WAY</label>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('Card')}
-                  className={`py-2 px-3 rounded-2xl text-xs font-bold transition-all border ${
+                  className={`py-2 px-3 rounded-2xl text-xs font-bold transition-all border text-center ${
                     paymentMethod === 'Card'
                       ? 'bg-brand/10 border-brand text-brand'
                       : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50/50'
                   }`}
                 >
-                  💳 Credit / Debit Card
+                  💳 Card
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('Wallet')}
-                  className={`py-2 px-3 rounded-2xl text-xs font-bold transition-all border ${
+                  className={`py-2 px-3 rounded-2xl text-xs font-bold transition-all border text-center ${
                     paymentMethod === 'Wallet'
                       ? 'bg-brand/10 border-brand text-brand'
                       : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50/50'
                   }`}
                 >
-                  👛 SolarPay Wallet
+                  👛 Wallet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('UPI')}
+                  className={`py-2 px-3 rounded-2xl text-xs font-bold transition-all border text-center ${
+                    paymentMethod === 'UPI'
+                      ? 'bg-brand/10 border-brand text-brand'
+                      : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50/50'
+                  }`}
+                >
+                  📱 UPI
                 </button>
               </div>
             </div>
@@ -455,7 +473,7 @@ const ProjectsExplorer = () => {
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : paymentMethod === 'Wallet' ? (
               <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400">Available Wallet Balance:</span>
@@ -475,6 +493,25 @@ const ProjectsExplorer = () => {
                     ⚠️ Insufficient wallet balance. Please add funds before checking out.
                   </div>
                 )}
+              </div>
+            ) : (
+              <div className="space-y-3 p-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-850 rounded-2xl text-xs">
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-950 text-center space-y-1.5">
+                  <span className="text-3xl block">📱</span>
+                  <h4 className="font-bold text-xs text-slate-850 dark:text-white">Pay via UPI App</h4>
+                  <p className="text-[10px] text-slate-450">Enter your UPI VPA address to request simulated collection request.</p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">UPI ID / VPA</label>
+                  <input
+                    type="text"
+                    required={paymentMethod === 'UPI'}
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value)}
+                    placeholder="e.g. username@bank"
+                    className="w-full px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 text-xs focus:outline-none focus:border-brand"
+                  />
+                </div>
               </div>
             )}
 

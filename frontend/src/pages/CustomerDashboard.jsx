@@ -246,7 +246,8 @@ const CustomerDashboard = () => {
           number: cardNumber.replace(/\s/g, ''),
           expiry: cardExpiry,
           cvv: cardCvv,
-        } : null
+        } : null,
+        upiId: selectedPayMethod === 'UPI' ? upiId : undefined
       });
 
       if (verifyRes.data.success) {

@@ -152,7 +152,8 @@ const Marketplace = () => {
           number: cardNumber.replace(/\s/g, ''),
           expiry: cardExpiry,
           cvv: cardCvv,
-        } : null
+        } : null,
+        upiId: selectedPayMethod === 'UPI' ? upiId : undefined
       });
 
       if (buyRes.data.success && verifyRes.data.success) {
@@ -203,7 +204,8 @@ const Marketplace = () => {
           number: cardNumber.replace(/\s/g, ''),
           expiry: cardExpiry,
           cvv: cardCvv,
-        } : null
+        } : null,
+        upiId: selectedPayMethod === 'UPI' ? upiId : undefined
       });
 
       if (verifyRes.data.success) {
