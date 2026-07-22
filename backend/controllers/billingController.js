@@ -14,7 +14,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 // Simulated Dummy Bank Payment Gateway Card Switch
 const validateDummyBankCard = (card) => {
   if (!card) {
-    return { success: false, error: 'Dummy Bank: Card details are required for card checkouts.' };
+    return { success: false, error: 'Dummy Bank: Card details are required for card checkouts.' }
   }
 
   const { number, name, expiry, cvv } = card;
